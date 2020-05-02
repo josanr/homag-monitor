@@ -1,0 +1,12 @@
+{
+  "apiendpoints": {
+    "board": "http://dev.numina.local/production/api/setboard",
+    "offcut": "http://dev.numina.local/production/api/setoffcut",
+    "part": "http://dev.numina.local/production/api/setpart"
+  },
+  "defaultuserid": 12,
+  "lastuserid": "30",
+  "monitorbasepath": "C:/Cadv41/Data/Runs/",
+  "serviceport": "1603",
+  "toolId": 10
+}
