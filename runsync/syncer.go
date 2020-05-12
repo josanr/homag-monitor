@@ -9,11 +9,8 @@ import (
 	"strings"
 )
 
-type Common struct {
-	OrderID int
-}
 type BoardInfo struct {
-	Common
+	OrderID      int
 	Id           int
 	Gid          int
 	Name         string
@@ -24,12 +21,12 @@ type BoardInfo struct {
 }
 
 type PartInfo struct {
-	Common
-	Id     int
-	Gid    int
-	Length int
-	Width  int
-	Num    int
+	OrderID int
+	Id      int
+	Gid     int
+	Length  int
+	Width   int
+	Num     int
 }
 
 type infoNode struct {
@@ -115,7 +112,7 @@ func (r *InfoSyncImpl) getInfoFromStore(runName string) infoNode {
 		isLoadError: true,
 		orderID:     0,
 	}
-
+	log.Println(r.basePath + "/" + runName + ".saw")
 	file, err := os.Open(r.basePath + "/" + runName + ".saw")
 	if err != nil {
 		log.Println(err)
