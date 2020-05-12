@@ -17,6 +17,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+type Dto struct {
+	userId     int
+	orderId    int
+	toolId     int
+	gid        int
+	partId     int
+	offcutId   int
+	actionType string
+}
+
 /*
 	types:
 	 	Eingestapelt = взять лист
@@ -43,7 +53,7 @@ var monitorConfig Config
 var theAPIClient *http.Client
 
 func createConn() (*sql.DB, error) {
-	theAPIClient = http.DefaultClient
+
 	conn, err := sql.Open("mssql", connectionStrings["Homag"])
 	if err != nil {
 		return nil, err
@@ -53,7 +63,7 @@ func createConn() (*sql.DB, error) {
 		log.Println("connected to homag")
 		return conn, nil
 	}
-	log.Println("Could not connect to Database homag....")
+	log.Println("Could not connect to Database Homag....")
 
 	conn, err = sql.Open("mssql", connectionStrings["H2008"])
 	if err != nil {
@@ -65,7 +75,7 @@ func createConn() (*sql.DB, error) {
 		return conn, nil
 	}
 
-	log.Println("Could not connect to any Homag Database")
+	log.Println("Could not connect to Database H2008....")
 	return nil, errors.New("could not connect to any Homag Database")
 }
 
@@ -80,6 +90,13 @@ func closeFile(f *os.File) {
 
 func main() {
 	//init logging
+	if _, err := os.Stat("counter.log"); err == nil {
+		newFilename := "counter-" + time.Now().Format("20060102150405") + ".log"
+		err := os.Rename("counter.log", newFilename)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
 	f, err := os.OpenFile("counter.log", os.O_RDWR|os.O_TRUNC|os.O_CREATE, 0666)
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
@@ -89,12 +106,6 @@ func main() {
 	log.Println("Counter Monitor Started")
 	defer closeFile(f)
 
-	//init db connection
-	db, err = createConn()
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	//load config
 	viper.SetConfigName("config")
 	viper.AddConfigPath(".")
@@ -103,6 +114,9 @@ func main() {
 		log.Fatal("Fatal error reading config file")
 	}
 	servicePort := viper.GetInt("servicePort")
+
+	connectionStrings["Homag"] = viper.GetString("dsns.Homag")
+	connectionStrings["H2008"] = viper.GetString("dsns.H2008")
 
 	baseRunPath := viper.GetString("runBasePath")
 	monitorConfig.ToolID = viper.GetInt("toolId")
@@ -115,6 +129,12 @@ func main() {
 	syncer := runsync.New(baseRunPath)
 	//cui
 	go startControlUI(servicePort)
+
+	//init db connection
+	db, err = createConn()
+	if err != nil {
+		log.Fatal(err)
+	}
 	//monitors
 	boardRespChan, boardErrorChan, err := board.New(db, syncer, exitChan)
 	if err != nil {

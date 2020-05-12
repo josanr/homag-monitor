@@ -4,6 +4,10 @@
     "offcut": "http://dev.numina.local/production/api/setoffcut",
     "part": "http://dev.numina.local/production/api/setpart"
   },
+  "dsns": {
+    "Homag": "server=sysadmin.numina.local\\Holzma;user id=sa;password=holzma;encrypt=disable",
+    "H2008": "server=sysadmin.numina.local\\HO2008;user id=sa;password=Homag;encrypt=disable"
+  },
   "defaultuserid": 12,
   "lastuserid": 30,
   "monitorbasepath": "C:/Cadv41/Data/Runs/",
