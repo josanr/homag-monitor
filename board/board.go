@@ -63,6 +63,7 @@ func New(conn *sql.DB, syncer runsync.InfoSync, exit chan bool) (chan Board, cha
 			`)
 	err := lastIDArr.Scan(&lastID)
 	if err != nil {
+		log.Println("error getting last board id: " + err.Error())
 		lastID = 0
 	}
 
@@ -84,7 +85,7 @@ func New(conn *sql.DB, syncer runsync.InfoSync, exit chan bool) (chan Board, cha
 	resultCnan := make(chan Board)
 	errorChan := make(chan FatalResponse)
 
-	go monitorBoards(stmt, 0 /*lastID*/, syncer, resultCnan, errorChan, exit)
+	go monitorBoards(stmt, lastID, syncer, resultCnan, errorChan, exit)
 	return resultCnan, errorChan, nil
 }
 
