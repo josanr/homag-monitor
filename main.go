@@ -88,7 +88,12 @@ func closeFile(f *os.File) {
 		os.Exit(1)
 	}
 }
-
+func closeWithErr(c io.Closer) {
+	err := c.Close()
+	if err != nil {
+		log.Printf("closing error: %v \n", err)
+	}
+}
 func main() {
 	//init logging
 	if _, err := os.Stat("counter.log"); err == nil {
