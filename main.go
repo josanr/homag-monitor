@@ -18,13 +18,14 @@ import (
 )
 
 type Dto struct {
-	userId     int
-	orderId    int
-	toolId     int
-	gid        int
-	partId     int
-	offcutId   int
-	actionType string
+	UserId     int    `json:"userId"`
+	OrderId    int    `json:"orderId"`
+	ToolId     int    `json:"toolId"`
+	Gid        int    `json:"gid"`
+	PartId     int    `json:"partId"`
+	OffcutId   int    `json:"offcutId"`
+	ActionType string `json:"actionType"`
+	Amount     int    `json:"amount"`
 }
 
 /*
