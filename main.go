@@ -110,7 +110,7 @@ func main() {
 	wrt := io.MultiWriter(os.Stdout, f)
 	log.SetOutput(wrt)
 	log.Println("Counter Monitor Started")
-	defer closeFile(f)
+	defer closeWithErr(f)
 
 	//load config
 	viper.SetConfigName("config")
