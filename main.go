@@ -1,18 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	_ "github.com/denisenkom/go-mssqldb"
 	"github.com/josanr/HomagMonitor/board"
 	"github.com/josanr/HomagMonitor/part"
 	"github.com/josanr/HomagMonitor/runsync"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
+	"time"
 
 	"github.com/spf13/viper"
 )
@@ -124,13 +127,16 @@ func main() {
 	connectionStrings["Homag"] = viper.GetString("dsns.Homag")
 	connectionStrings["H2008"] = viper.GetString("dsns.H2008")
 
-	baseRunPath := viper.GetString("runBasePath")
+	baseRunPath := viper.GetString("monitorbasepath")
 	monitorConfig.ToolID = viper.GetInt("toolId")
 	monitorConfig.UserID = viper.GetInt("defaultUserID")
 	lastUserID := viper.GetInt("lastUserID")
 	if lastUserID != 0 {
 		monitorConfig.UserID = lastUserID
 	}
+	boardsUrl := viper.GetString("apiendpoints.board")
+	partsUrl := viper.GetString("apiendpoints.part")
+
 	exitChan := make(chan bool)
 	syncer := runsync.New(baseRunPath)
 	//cui
@@ -151,16 +157,49 @@ func main() {
 	if err != nil {
 		log.Fatal("error on part monitor: " + err.Error())
 	}
-
+	theAPIClient = &http.Client{
+		Timeout: time.Second * 10,
+	}
 	for {
 
 		select {
 		case boardItem := <-boardRespChan:
-			log.Println(boardItem)
+
+			param := Dto{
+				UserId:     monitorConfig.UserID,
+				OrderId:    boardItem.Info.OrderID,
+				ToolId:     monitorConfig.ToolID,
+				Gid:        boardItem.Info.Gid,
+				PartId:     0,
+				OffcutId:   boardItem.Info.Id,
+				ActionType: boardItem.ActionType,
+				Amount:     1,
+			}
+			fmt.Println("board data")
+			_ = sendQuery(boardsUrl, param)
+
 		case boardError := <-boardErrorChan:
 			log.Println(boardError.ErrorMessage)
 		case partItem := <-partsRespChan:
-			log.Println(partItem)
+			param := Dto{
+				UserId:  monitorConfig.UserID,
+				OrderId: partItem.Info.OrderID,
+				ToolId:  monitorConfig.ToolID,
+				Gid:     partItem.Info.Gid,
+				//partId:     partItem.Info.Id,
+				//offcutId:   partItem.Info.Id,
+				ActionType: "end",
+				Amount:     partItem.PartAmount,
+			}
+			if partItem.IsOffcut {
+				param.OffcutId = partItem.Info.Id
+				fmt.Println("offcut data")
+			} else {
+				param.PartId = partItem.Info.Id
+				fmt.Println("part data")
+			}
+			_ = sendQuery(partsUrl, param)
+
 		case partError := <-partsErrorChan:
 			log.Println(partError.ErrorMessage)
 			//case part := <-monitorer.Parts:
@@ -171,108 +210,57 @@ func main() {
 		// log.Println(string(message))
 	}
 
-	//var connActive = make(chan bool)
-	//var monitorer = monitor.New(db, &monitorConfig, connActive)
-	//// var message []byte
-	//for {
-	//
-	//	select {
-	//	case board := <-monitorer.Boards:
-	//
-	//		err = markBoard(board)
-	//		log.Println("board sent")
-	//	case part := <-monitorer.Parts:
-	//		_, _ = json.Marshal(part)
-	//	case ex := <-monitorer.Errors:
-	//		_, _ = json.Marshal(ex)
-	//	}
-	//	// log.Println(string(message))
-	//}
-
 }
 
-func startControlUI(servicePort int) {
-	http.HandleFunc("/setUid/", setUIDHandler)
-	log.Println("CUI starting")
-	err := http.ListenAndServe(":"+strconv.Itoa(servicePort), nil)
+func sendQuery(urlString string, dto Dto) error {
+
+	fmt.Println("URL:>", urlString)
+	payload, err := json.Marshal(dto)
 	if err != nil {
-		log.Println("could not start control interface")
-		log.Println(err)
-		return
+		log.Println("Marshaling Error" + err.Error())
+		return err
+	}
+	fmt.Println(string(payload))
+
+	req, err := http.NewRequest("POST", urlString, bytes.NewBuffer(payload))
+	if err != nil {
+		log.Println("request create error: " + err.Error())
+		return err
 	}
 
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := theAPIClient.Do(req)
+	if err != nil {
+		log.Println("request send error: " + err.Error())
+		return err
+	}
+	defer closeWithErr(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		log.Println("response status not 200 error: " + resp.Status)
+		return err
+	}
+	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1048576))
+	if err != nil {
+		log.Println("response body read error: " + err.Error())
+		return err
+	}
+
+	var reqResult apiResult
+	err = json.Unmarshal(body, &reqResult)
+	if err != nil {
+		log.Println("request unmarshal error: " + err.Error())
+		return err
+	}
+
+	if reqResult.Result != "OK" {
+		return errors.New("error set in response: " + reqResult.Result)
+	}
+
+	return nil
 }
 
-//func markBoard(board monitor.Board) error {
-//	urlString := viper.GetString("apiendpoints.board")
-//
-//	form := url.Values{}
-//	form.Add("gid", strconv.Itoa(board.Info.Gid))
-//	form.Add("length", strconv.Itoa(board.Info.Length))
-//	form.Add("width", strconv.Itoa(board.Info.Width))
-//	form.Add("thick", strconv.Itoa(board.Info.Thick))
-//
-//	form.Add("orderId", strconv.Itoa(board.Info.OrderID))
-//	form.Add("toolId", strconv.Itoa(board.Info.ToolID))
-//	form.Add("userId", strconv.Itoa(board.Info.UserID))
-//
-//	form.Add("boardId", strconv.Itoa(board.Info.Id))
-//	form.Add("isFromOffcut", strconv.FormatBool(board.Info.IsFromOffcut))
-//
-//	form.Add("actionType", board.ActionType)
-//
-//	req, err := http.NewRequest(http.MethodPost, urlString, strings.NewReader(form.Encode()))
-//	if err != nil {
-//		return err
-//	}
-//	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-//
-//	resp, err := theAPIClient.Do(req)
-//	if err != nil {
-//		return err
-//	}
-//	defer resp.Body.Close()
-//	body, err := ioutil.ReadAll(io.LimitReader(resp.Body, 1048576))
-//	if err != nil {
-//		return err
-//	}
-//
-//	reqResult := make(map[string]string)
-//	json.Unmarshal(body, &reqResult)
-//
-//	if _, ok := reqResult["result"]; ok == false {
-//		return errors.New("wrong response format")
-//	}
-//
-//	if v, _ := reqResult["result"]; v != "OK" {
-//		return errors.New("error set in response: " + v)
-//	}
-//
-//	return nil
-//}
-
-type okResponse struct {
-	Message string `json:"message"`
-}
-
-func setUIDHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	if r.URL.Path != "/setUid/" {
-		http.Error(w, "404 not found.", http.StatusNotFound)
-		return
-	}
-	if r.Method != "POST" {
-		http.Error(w, "wrong request method", http.StatusBadRequest)
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "request form data corrupt", http.StatusBadRequest)
-		return
-	}
-	uid := r.FormValue("uid")
-	monitorConfig.UserID, _ = strconv.Atoi(uid)
-	viper.Set("lastUserID", monitorConfig.UserID)
-	_ = viper.WriteConfig()
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(okResponse{"action done, id set: " + strconv.Itoa(monitorConfig.UserID)})
-	return
+type apiResult struct {
+	Result string `json:"result"`
 }
