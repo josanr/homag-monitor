@@ -1,8 +1,7 @@
 {
   "apiendpoints": {
-    "board": "http://dev.numina.local/production/api/setboard",
-    "offcut": "http://dev.numina.local/production/api/setoffcut",
-    "part": "http://dev.numina.local/production/api/setpart"
+    "board": "http://dev.numina.local:1616/homag/boards",
+    "part": "http://dev.numina.local:1616/homag/parts"
   },
   "dsns": {
     "Homag": "server=sysadmin.numina.local\\Holzma;user id=sa;password=holzma;encrypt=disable",
