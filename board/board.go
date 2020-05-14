@@ -40,12 +40,15 @@ type Board struct {
 	ErrorMessage string
 }
 
+const START = "start"
+const END = "end"
+
 func setActionType(actionResult string) (string, error) {
 	switch actionResult {
 	case "Eingestapelt":
-		return "start", nil
+		return START, nil
 	case "Produziert":
-		return "end", nil
+		return END, nil
 	default:
 		return "", errors.New("action type is not palete or produced")
 	}
@@ -121,6 +124,9 @@ func monitorBoards(stmt *sql.Stmt, lastID int, syncer runsync.InfoSync, boardCan
 			lastID = row.id
 			boardID, _ := strconv.Atoi(row.mapID)
 			actType, err := setActionType(row.actionType)
+			if actType == START {
+				continue
+			}
 			if err != nil {
 				log.Println("Row scan: acttype: ", err)
 				continue
